@@ -765,78 +765,104 @@ window.addEventListener('storage', function(event) {
 });
 
 function loadBarang() {
+    // Get the table element and verify it exists
+    const tabelElement = document.getElementById('tabelBarang');
+    if (!tabelElement) {
+        console.error('Table element not found');
+        return;
+    }
+
+    // Get or create tbody
+    let tbody = tabelElement.getElementsByTagName('tbody')[0];
+    if (!tbody) {
+        tbody = document.createElement('tbody');
+        tabelElement.appendChild(tbody);
+    }
+
+    // Get data from localStorage
     let barang = JSON.parse(localStorage.getItem('barang')) || [];
-    const tabelBarang = document.getElementById('tabelBarang').getElementsByTagName('tbody')[0]; // Ambil tbody dari tabel
-
-    // Kosongkan tabel sebelum menampilkan data
-    tabelBarang.innerHTML = '';
-
-    let stokHampirHabis = []; // Array untuk menyimpan barang yang stoknya hampir habis
-
-    // Kelompokkan barang berdasarkan kategori
-    const kategoriKelompok = {};
-
-    barang.forEach(item => {
-        if (!kategoriKelompok[item.kategori]) {
-            kategoriKelompok[item.kategori] = []; // Inisialisasi kategori jika belum ada
-        }
-        kategoriKelompok[item.kategori].push(item); // Tambahkan barang ke kategori yang sesuai
-    });
-
-    // Urutkan kategori
-    const urutanKategori = ['A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7'];
     
-    // Tampilkan barang berdasarkan kategori yang sudah diurutkan
-    urutanKategori.forEach(kategori => {
-        if (kategoriKelompok[kategori]) { // Pastikan kategori ada di kelompok
-            // Tambahkan header kategori
-            const kategoriRow = tabelBarang.insertRow();
-            const kategoriCell = kategoriRow.insertCell(0);
-            kategoriCell.colSpan = 11; // Mengatur kolom untuk menggabungkan header kategori
-            kategoriCell.innerHTML = `<strong>Kategori: ${kategori}</strong>`; // Tampilkan nama kategori
-            
-            // Tambahkan barang dalam kategori ini
-            kategoriKelompok[kategori].forEach(item => {
-                const row = tabelBarang.insertRow();
-                
-                // Tambahkan data ke dalam baris
-                row.insertCell(0).innerText = ''; // Kolom Kategori kosong karena sudah ditampilkan sebelumnya
-                row.insertCell(1).innerText = item.kodeToko; // Kode Toko
-                row.insertCell(2).innerText = item.kode; // Kode Barang
-                row.insertCell(3).innerText = item.nama; // Nama Barang
-                row.insertCell(4).innerText = formatRupiah(item.hargaBeli); // Harga Beli
-                row.insertCell(5).innerText = formatRupiah(item.hargaJual); // Harga Jual
-                row.insertCell(6).innerText = item.stok; // Stok
-                
-                const totalTerjual = item.terjual || 0; // Total barang terjual
-                const keuntungan = (item.hargaJual - item.hargaBeli) * totalTerjual; // Total keuntungan
-                const persentaseTerjual = item.stok > 0 ? ((totalTerjual / item.stok) * 100).toFixed(2) : 0; // Persentase terjual
+    // Clear existing table content
+    tbody.innerHTML = '';
 
-                row.insertCell(7).innerText = totalTerjual; // Total Terjual
-                row.insertCell(8).innerText = formatRupiah(keuntungan); // Keuntungan
-                row.insertCell(9).innerText = `${persentaseTerjual}%`; // Persentase Terjual
+    let stokHampirHabis = [];
 
-                // Tambahkan sel aksi di kolom terakhir
-                const aksiCell = row.insertCell(10); 
+    // Group items by category
+    const kategoriKelompok = {};
+    barang.forEach(item => {
+        const kategori = item.kategori || 'Uncategorized'; // Fallback for items without category
+        if (!kategoriKelompok[kategori]) {
+            kategoriKelompok[kategori] = [];
+        }
+        kategoriKelompok[kategori].push(item);
 
-                // Tombol Edit
-                const editBtn = document.createElement('button');
-                editBtn.classList.add('action-btn', 'edit-btn');
-                editBtn.innerHTML = '<i class="fas fa-edit"></i>Edit';
-                editBtn.onclick = () => editBarang(item.kode); // Ganti index dengan item.kode jika perlu
-                aksiCell.appendChild(editBtn);
-
-                // Tombol Hapus
-                const hapusBtn = document.createElement('button');
-                hapusBtn.classList.add('action-btn', 'hapus-btn');
-                hapusBtn.innerHTML = '<i class="fas fa-trash"></i>Hapus';
-                hapusBtn.onclick = () => hapusBarang(item.kode); // Ganti index dengan item.kode jika perlu
-                aksiCell.appendChild(hapusBtn);
-            });
+        // Check for low stock
+        if (item.stok <= 5) {
+            stokHampirHabis.push(`${item.nama} (Stok: ${item.stok})`);
         }
     });
 
-    // Tampilkan notifikasi stok hampir habis jika ada barang dengan stok 5 atau kurang
+    // Define category order
+    const urutanKategori = ['A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'Uncategorized'];
+
+    // Display items by category
+    urutanKategori.forEach(kategori => {
+        if (kategoriKelompok[kategori] && kategoriKelompok[kategori].length > 0) {
+            try {
+                // Add category header
+                const headerRow = tbody.insertRow();
+                const headerCell = headerRow.insertCell(0);
+                headerCell.colSpan = 11;
+                headerCell.innerHTML = `<strong>Kategori: ${kategori}</strong>`;
+                headerCell.className = 'category-header';
+
+                // Add items in this category
+                kategoriKelompok[kategori].forEach(item => {
+                    const row = tbody.insertRow();
+                    
+                    // Create cells with safe value assignment
+                    const cells = [
+                        '', // Empty cell for category
+                        item.kodeToko || '',
+                        item.kode || '',
+                        item.nama || '',
+                        formatRupiah(item.hargaBeli || 0),
+                        formatRupiah(item.hargaJual || 0),
+                        item.stok || 0,
+                        item.terjual || 0,
+                        formatRupiah((item.hargaJual - item.hargaBeli) * (item.terjual || 0)),
+                        `${item.stok > 0 ? ((item.terjual || 0) / item.stok * 100).toFixed(2) : 0}%`
+                    ];
+
+                    // Insert cells with values
+                    cells.forEach(cellValue => {
+                        row.insertCell().innerText = cellValue;
+                    });
+
+                    // Add action buttons
+                    const actionCell = row.insertCell();
+                    
+                    // Edit button
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'action-btn edit-btn';
+                    editBtn.innerHTML = '<i class="fas fa-edit"></i>Edit';
+                    editBtn.onclick = () => editBarang(item.kode);
+                    actionCell.appendChild(editBtn);
+
+                    // Delete button
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'action-btn hapus-btn';
+                    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>Hapus';
+                    deleteBtn.onclick = () => hapusBarang(item.kode);
+                    actionCell.appendChild(deleteBtn);
+                });
+            } catch (error) {
+                console.error(`Error processing category ${kategori}:`, error);
+            }
+        }
+    });
+
+    // Show low stock notification if needed
     if (stokHampirHabis.length > 0) {
         Swal.fire({
             icon: 'warning',
@@ -850,10 +876,15 @@ function loadBarang() {
     }
 }
 
-        function formatRupiah(angka) {
-            // Format angka ke format rupiah
-            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(angka);
-        }
+// Helper function for formatting currency
+function formatRupiah(amount) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount);
+}
 
 
 
@@ -883,39 +914,134 @@ function formatRupiah(angka) {
             });
         }
 
-        function downloadExcel() {
-    const tabelBarang = document.getElementById('tabelBarang').getElementsByTagName('tbody')[0]; // Ambil tbody dari tabel
-    const rows = tabelBarang.getElementsByTagName('tr'); // Ambil semua baris
-    let worksheet_data = [['Kode Toko', 'Kode Barang', 'Nama Barang', 'Harga Beli', 'Harga Jual', 'Stok', 'Total Terjual', 'Keuntungan', 'Persentase Terjual', 'Target Penjualan', 'Persentase Target']];
+function downloadExcel() {
+    try {
+        const tabelBarang = document.getElementById('tabelBarang');
+        if (!tabelBarang) {
+            throw new Error('Table element not found');
+        }
 
-    let targets = JSON.parse(localStorage.getItem('targetPenjualan')) || []; // Ambil target penjualan dari localStorage
+        const tbody = tabelBarang.getElementsByTagName('tbody')[0];
+        if (!tbody) {
+            throw new Error('Table body not found');
+        }
 
-    // Loop melalui setiap baris untuk mengambil data yang ditampilkan
-    for (let row of rows) {
-        const cells = row.getElementsByTagName('td');
-        const kodeToko = cells[0].innerText; // Kode Toko
-        const kodeBarang = cells[1].innerText; // Kode Barang
-        const namaBarang = cells[2].innerText; // Nama Barang
-        const hargaBeli = parseFloat(cells[3].innerText.replace(/[^0-9.-]+/g, "")); // Hapus format rupiah
-        const hargaJual = parseFloat(cells[4].innerText.replace(/[^0-9.-]+/g, "")); // Hapus format rupiah
-        const stok = parseInt(cells[5].innerText); // Stok
-        const totalTerjual = parseInt(cells[6].innerText); // Total Terjual
-        const keuntungan = (hargaJual - hargaBeli) * totalTerjual; // Hitung total keuntungan
-        const persentaseTerjual = stok > 0 ? ((totalTerjual / stok) * 100).toFixed(2) : 0; // Persentase Terjual
+        // Define headers for Excel
+        let worksheet_data = [
+            ['Kategori', 'Kode Toko', 'Kode Barang', 'Nama Barang', 'Harga Beli', 
+             'Harga Jual', 'Stok', 'Total Terjual', 'Keuntungan', 'Persentase Terjual', 
+             'Target Penjualan', 'Persentase Target']
+        ];
 
-        // Cek apakah ada target penjualan untuk barang ini
-        const targetPenjualanHariIni = targets.find(target => target.namaBarang === namaBarang);
-        const jumlahTarget = targetPenjualanHariIni ? targetPenjualanHariIni.jumlahTarget : 'Tidak Ada';
-        const persentaseTarget = targetPenjualanHariIni ? ((totalTerjual / targetPenjualanHariIni.jumlahTarget) * 100).toFixed(2) : '0';
+        // Get targets from localStorage
+        let targets = JSON.parse(localStorage.getItem('targetPenjualan')) || [];
 
-        worksheet_data.push([kodeToko, kodeBarang, namaBarang, hargaBeli, hargaJual, stok, totalTerjual, keuntungan, `${persentaseTerjual}%`, jumlahTarget, `${persentaseTarget}%`]);
+        // Get all rows
+        const rows = tbody.getElementsByTagName('tr');
+        let currentCategory = '';
+
+        // Process each row
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            
+            // Skip if row has no cells
+            if (!cells || cells.length === 0) continue;
+
+            // Check if this is a category header row
+            if (cells.length === 1 && cells[0].hasAttribute('colspan')) {
+                currentCategory = cells[0].innerText.replace('Kategori: ', '').trim();
+                continue;
+            }
+
+            // Skip if not enough cells
+            if (cells.length < 7) continue;
+
+            try {
+                // Safely get cell values with error checking
+                const getValue = (cell) => cell ? cell.innerText.trim() : '';
+                const parseNumber = (text) => {
+                    const number = parseFloat(text.replace(/[^0-9.-]+/g, ""));
+                    return isNaN(number) ? 0 : number;
+                };
+
+                const kodeToko = getValue(cells[1]);
+                const kodeBarang = getValue(cells[2]);
+                const namaBarang = getValue(cells[3]);
+                const hargaBeli = parseNumber(getValue(cells[4]));
+                const hargaJual = parseNumber(getValue(cells[5]));
+                const stok = parseInt(getValue(cells[6])) || 0;
+                const totalTerjual = parseInt(getValue(cells[7])) || 0;
+                const keuntungan = (hargaJual - hargaBeli) * totalTerjual;
+                const persentaseTerjual = stok > 0 ? ((totalTerjual / stok) * 100).toFixed(2) : '0';
+
+                // Find target for this item
+                const targetPenjualanHariIni = targets.find(target => 
+                    target.namaBarang === namaBarang);
+                const jumlahTarget = targetPenjualanHariIni ? 
+                    targetPenjualanHariIni.jumlahTarget : 'Tidak Ada';
+                const persentaseTarget = targetPenjualanHariIni ? 
+                    ((totalTerjual / targetPenjualanHariIni.jumlahTarget) * 100).toFixed(2) : '0';
+
+                // Add row to worksheet data
+                worksheet_data.push([
+                    currentCategory,
+                    kodeToko,
+                    kodeBarang,
+                    namaBarang,
+                    hargaBeli,
+                    hargaJual,
+                    stok,
+                    totalTerjual,
+                    keuntungan,
+                    `${persentaseTerjual}%`,
+                    jumlahTarget,
+                    `${persentaseTarget}%`
+                ]);
+            } catch (cellError) {
+                console.error('Error processing row:', cellError);
+                continue; // Skip this row if there's an error
+            }
+        }
+
+        // Create and download Excel file
+        if (worksheet_data.length > 1) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheet_data);
+
+            // Add some styling to the header row
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (!worksheet[address]) continue;
+                worksheet[address].s = {
+                    fill: { fgColor: { rgb: "FFFF00" } },
+                    font: { bold: true }
+                };
+            }
+
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Barang');
+            XLSX.writeFile(workbook, `data_barang_${new Date().toLocaleDateString()}.xlsx`);
+
+            // Show success message
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'File Excel berhasil diunduh!',
+                timer: 2000
+            });
+        } else {
+            throw new Error('No data to export');
+        }
+
+    } catch (error) {
+        console.error('Error in downloadExcel:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Terjadi kesalahan saat mengunduh data: ' + error.message
+        });
     }
-
-    // Konversi data menjadi worksheet dan unduh file Excel
-    let workbook = XLSX.utils.book_new();
-    let worksheet = XLSX.utils.aoa_to_sheet(worksheet_data);
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Barang');
-    XLSX.writeFile(workbook, 'data_barang.xlsx');
 }
 
 function uploadExcel() {
